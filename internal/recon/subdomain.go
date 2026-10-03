@@ -85,7 +85,8 @@ func (r *SubdomainResolver) fetchFromCRT(ctx context.Context, domain string) ([]
 		names := strings.Split(entry.NameValue, "\n")
 		for _, name := range names {
 			clean := strings.TrimPrefix(strings.TrimSpace(name), "*.")
-			if clean != "" && strings.HasSuffix(clean, domain) {
+			// Strict filter to exclude spaces, symbols like '@', and ensure valid hostname format
+			if clean != "" && strings.HasSuffix(clean, domain) && !strings.Contains(clean, " ") && !strings.Contains(clean, "@") {
 				list = append(list, clean)
 			}
 		}
@@ -117,13 +118,13 @@ func (r *SubdomainResolver) fetchFromHackerTarget(ctx context.Context, domain st
 		parts := strings.Split(scanner.Text(), ",")
 		if len(parts) > 0 {
 			sub := strings.TrimSpace(parts[0])
-			if sub != "" && strings.HasSuffix(sub, domain) {
+			// Strict filter applied here as well
+			if sub != "" && strings.HasSuffix(sub, domain) && !strings.Contains(sub, " ") && !strings.Contains(sub, "@") {
 				list = append(list, sub)
 			}
 		}
 	}
 
-	// Warning Fix: Scan loop ke baad error check add kiya gaya hai
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error reading response stream: %w", err)
 	}

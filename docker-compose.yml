@@ -1,16 +1,25 @@
-version: '3.8'
-
 services:
-  aegis-api:
+  ai-triage-api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.api
     ports:
       - "8000:8000"
     environment:
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./reports:/app/reports
+      - REDIS_URL=redis://redis:6379/0
+    restart: always
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: celery -A services.api.main.celery_app worker --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - ai-triage-api
+    restart: always
 
   redis:
     image: redis:alpine
