@@ -1,15 +1,32 @@
-# AegisEngine
+# 🛡️ AegisEngine v2.0
+> **Autonomous Hybrid Vulnerability Scanner & AI-Assisted Triage System**
 
-> **Autonomous AI-Driven Vulnerability Scanner & Triage Engine**  
-> *Combines high-concurrency network reconnaissance in Go with LLM-powered false-positive reduction in Python.*
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Python Version](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python)](https://www.python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Features
-- Go Scanner Core: Multi-threaded async network checks.
-- AI Triage Layer: False positive reduction with LLM reasoning.
-- Playwright Browser Verification: Automatic screenshot proof for DOM/XSS vulnerabilities.
-- OAST Listener: Out-of-band callback handler for Blind vulnerabilities.
+**AegisEngine** is a high-concurrency security scanner designed to bridge the gap between rapid network reconnaissance and accurate vulnerability validation. By coupling a low-latency Go scanning engine with an asynchronous Python FastAPI triage microservice, AegisEngine automates candidate payload testing and filters out false positives before security teams review alerts.
 
-## Quick Start
-1. Install Dependencies: pip install -r requirements.txt
-2. Run API Server: uvicorn services.api.main:app --reload --port 8000
-3. Run Go CLI: go run cmd/aegis-cli/main.go
+---
+
+## 🏗️ System Architecture
+
+```text
+               +----------------------------------+
+               |        AegisEngine CLI (Go)      |
+               | - Worker Pools & Concurrency    |
+               | - HTTP Recon & Target Discovery  |
+               +----------------+-----------------+
+                                |
+                                | HTTP POST (Payload & Metadata)
+                                v
+               +----------------------------------+
+               |     AI Triage Service (FastAPI)  |
+               | - Payload Validation             |
+               | - Playwright DOM Proof Engine    |
+               | - Contextual Risk Scoring        |
+               +----------------+-----------------+
+                                |
+                                v
+                   [ Formatted Security Alerts ]
