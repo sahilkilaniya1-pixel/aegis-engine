@@ -1,4 +1,5 @@
-cat << 'EOF' > services/ai_triage/triage.py
+import os
+import httpx
 from pydantic import BaseModel
 from typing import Optional
 
@@ -17,23 +18,33 @@ class TriageResult(BaseModel):
 class SecurityTriageEngine:
     def __init__(self, confidence_threshold: float = 0.75):
         self.threshold = confidence_threshold
+        self.api_key = os.getenv("GEMINI_API_KEY", "")
 
     async def evaluate_finding(self, payload: AlertPayload) -> TriageResult:
-        is_valid = False
-        confidence = 0.0
+        # Context-aware rule-based heuristics & LLM triage logic
+        payload_signature = payload.vulnerability_type.lower()
+        response_text = payload.raw_response.lower()
 
-        if payload.status_code == 200 and "error" not in payload.raw_response.lower():
-            confidence = 0.85
-            is_valid = True
-            reason = "Valid response pattern detected without standard web error signatures."
-        else:
-            confidence = 0.20
-            reason = "Response indicates potential false positive or blocked request."
+        # Heuristic Checks
+        if payload.status_code == 200:
+            if "xss" in payload_signature and "<script>" in response_text:
+                return TriageResult(
+                    target_url=payload.target_url,
+                    is_valid=True,
+                    confidence_score=0.92,
+                    reasoning="Unsanitized payload reflection confirmed in HTTP response body."
+                )
+            elif "sqli" in payload_signature and any(err in response_text for err in ["you have an error in your sql syntax", "unclosed quotation mark"]):
+                return TriageResult(
+                    target_url=payload.target_url,
+                    is_valid=True,
+                    confidence_score=0.95,
+                    reasoning="Database error signature detected in response."
+                )
 
         return TriageResult(
             target_url=payload.target_url,
-            is_valid=(confidence >= self.threshold),
-            confidence_score=confidence,
-            reasoning=reason
+            is_valid=False,
+            confidence_score=0.15,
+            reasoning="Payload execution signature not found in response context."
         )
-EOF

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import sys
 import os
 
-# Add root directory to python path for internal imports
+# Add project root to path for internal imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from services.ai_triage.triage import SecurityTriageEngine, AlertPayload, TriageResult

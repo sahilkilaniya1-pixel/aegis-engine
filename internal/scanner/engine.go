@@ -1,4 +1,3 @@
-cat << 'EOF' > internal/scanner/engine.go
 package scanner
 
 import (
@@ -43,12 +42,27 @@ func (s *ScannerEngine) ProcessTargets(ctx context.Context, targets []Target) []
 		go func() {
 			defer wg.Done()
 			for target := range targetChan {
-				select {
-				case <-ctx.Done():
-					return
-				default:
-					s.checkTarget(target, resultChan)
+				start := time.Now()
+				req, err := http.NewRequestWithContext(ctx, "GET", target.URL, nil)
+				if err != nil {
+					resultChan <- ScanResult{URL: target.URL, Error: err}
+					continue
 				}
+
+				resp, err := s.Client.Do(req)
+				latency := time.Since(start)
+
+				if err != nil {
+					resultChan <- ScanResult{URL: target.URL, Latency: latency, Error: err}
+					continue
+				}
+
+				resultChan <- ScanResult{
+					URL:        target.URL,
+					StatusCode: resp.StatusCode,
+					Latency:    latency,
+				}
+				resp.Body.Close()
 			}
 		}()
 	}
@@ -68,22 +82,3 @@ func (s *ScannerEngine) ProcessTargets(ctx context.Context, targets []Target) []
 
 	return results
 }
-
-func (s *ScannerEngine) checkTarget(target Target, results chan<- ScanResult) {
-	start := time.Now()
-	resp, err := s.Client.Get(target.URL)
-	duration := time.Since(start)
-
-	if err != nil {
-		results <- ScanResult{URL: target.URL, Error: err}
-		return
-	}
-	defer resp.Body.Close()
-
-	results <- ScanResult{
-		URL:        target.URL,
-		StatusCode: resp.StatusCode,
-		Latency:    duration,
-	}
-}
-EOF
