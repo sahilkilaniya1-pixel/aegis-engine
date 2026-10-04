@@ -1,7 +1,11 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
+
 from app.database import engine, Base, get_db, SessionLocal
 from app.models import Target, Scan, Vulnerability
+
+# Background Celery Tasks
 from app.tasks.recon import run_subdomain_recon
 from app.tasks.port_scan import run_port_scan
 from app.tasks.ai_triage import run_ai_triage
@@ -9,21 +13,33 @@ from app.tasks.fuzzing import run_directory_fuzzing
 from app.tasks.active_scanner import run_active_vulnerability_scan
 from app.tasks.payload_scanner import run_payload_scan
 from app.tasks.crawler import run_crawler_scan
+
 from pydantic import BaseModel
 from services.api import reports
+
+# Core Routers
 from app.proxy import proxy_router
 from app.oob_server import oob_router
 from app.auth_macro import macro_router
 
-# Database tables auto-create
-Base.metadata.create_all(bind=engine)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Database tables auto-create
+    Base.metadata.create_all(bind=engine)
+    yield
+    # Shutdown logic (agar zaroorat ho)
 
-app = FastAPI(title="Aegis Engine API", version="1.0.0")
+app = FastAPI(
+    title="AegisEngine Enterprise VAPT Platform",
+    version="1.0.0",
+    description="Enterprise-grade Vulnerability Assessment and Penetration Testing Platform with Burp Suite Pro parity.",
+    lifespan=lifespan
+)
+
+# Register Routers
 app.include_router(proxy_router)
 app.include_router(oob_router)
 app.include_router(macro_router)
-
-# Register Phase 6 Reporting Router
 app.include_router(reports.router, prefix="/api/v1", tags=["Reports"])
 
 class TargetCreate(BaseModel):
@@ -31,7 +47,19 @@ class TargetCreate(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"platform": "Aegis Engine", "status": "Online", "phase": "1, 2, 3, 4, 5, 6 & Payload Scanner Active"}
+    return {
+        "platform": "AegisEngine",
+        "status": "Online",
+        "modules": [
+            "Proxy Engine",
+            "OOB Collaborator",
+            "Auth & Macro Engine",
+            "Recon & Port Scanner",
+            "Active Vulnerability Scanner",
+            "Payload & Crawler Engine",
+            "AI Triage & Reports"
+        ]
+    }
 
 @app.post("/targets/")
 def create_target(payload: TargetCreate, db: Session = Depends(get_db)):
@@ -166,6 +194,30 @@ def trigger_payload_scan(target_id: int, target_url: str, db: Session = Depends(
         "target_url": target_url
     }
 
+@app.post("/scans/crawl/{target_id}")
+def trigger_crawl_scan(target_id: int, target_url: str):
+    db = SessionLocal()
+    try:
+        target = db.query(Target).filter(Target.id == target_id).first()
+        if not target:
+            raise HTTPException(status_code=404, detail="Target not found")
+        
+        new_scan = Scan(target_id=target_id, scan_type="crawler", status="pending")
+        db.add(new_scan)
+        db.commit()
+        db.refresh(new_scan)
+        
+        task = run_crawler_scan.delay(new_scan.id, target_id, target_url)
+        
+        return {
+            "message": "Web crawler scan initiated successfully",
+            "scan_id": new_scan.id,
+            "celery_task_id": task.id,
+            "target_url": target_url
+        }
+    finally:
+        db.close()
+
 @app.get("/scans/{scan_id}")
 def get_scan_status(scan_id: int, db: Session = Depends(get_db)):
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
@@ -178,32 +230,4 @@ def get_scan_status(scan_id: int, db: Session = Depends(get_db)):
         "status": scan.status,
         "results": scan.results,
         "created_at": scan.created_at
-    }
-
-
-@app.post("/scans/crawl/{target_id}")
-def trigger_crawl_scan(target_id: int, target_url: str):
-    db = SessionLocal()
-    
-    # Target check karein ki exist karta hai ya nahi
-    target = db.query(Target).filter(Target.id == target_id).first()
-    if not target:
-        db.close()
-        raise HTTPException(status_code=404, detail="Target not found")
-    
-    # Scan record create karein database mein
-    new_scan = Scan(target_id=target_id, scan_type="crawler", status="pending")
-    db.add(new_scan)
-    db.commit()
-    db.refresh(new_scan)
-    
-    # Celery background task trigger karein
-    task = run_crawler_scan.delay(new_scan.id, target_id, target_url)
-    
-    db.close()
-    return {
-        "message": "Web crawler scan initiated successfully",
-        "scan_id": new_scan.id,
-        "celery_task_id": task.id,
-        "target_url": target_url
     }
