@@ -7,6 +7,7 @@ from app.tasks.port_scan import run_port_scan
 from app.tasks.ai_triage import run_ai_triage
 from app.tasks.fuzzing import run_directory_fuzzing
 from app.tasks.active_scanner import run_active_vulnerability_scan
+from app.tasks.payload_scanner import run_payload_scan
 from pydantic import BaseModel
 from services.api import reports
 
@@ -23,7 +24,7 @@ class TargetCreate(BaseModel):
 
 @app.get("/")
 def read_root():
-    return {"platform": "Aegis Engine", "status": "Online", "phase": "1, 2, 3, 4, 5 & 6 Active"}
+    return {"platform": "Aegis Engine", "status": "Online", "phase": "1, 2, 3, 4, 5, 6 & Payload Scanner Active"}
 
 @app.post("/targets/")
 def create_target(payload: TargetCreate, db: Session = Depends(get_db)):
@@ -136,6 +137,26 @@ def trigger_active_scan(target_id: int, db: Session = Depends(get_db)):
         "scan_id": scan.id,
         "task_id": task.id,
         "domain": target.domain
+    }
+
+@app.post("/scans/payload-scan/{target_id}")
+def trigger_payload_scan(target_id: int, target_url: str, db: Session = Depends(get_db)):
+    target = db.query(Target).filter(Target.id == target_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+    
+    scan = Scan(target_id=target.id, scan_type="payload_scan", status="pending")
+    db.add(scan)
+    db.commit()
+    db.refresh(scan)
+    
+    task = run_payload_scan.delay(scan.id, target.id, target_url)
+    
+    return {
+        "message": "Payload security scan queued successfully",
+        "scan_id": scan.id,
+        "task_id": task.id,
+        "target_url": target_url
     }
 
 @app.get("/scans/{scan_id}")
