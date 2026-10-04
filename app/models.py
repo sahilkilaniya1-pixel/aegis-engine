@@ -29,3 +29,14 @@ class Vulnerability(Base):
     description = Column(Text)
     raw_evidence = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class OOBInteractionModel(Base):
+    __tablename__ = "oob_interactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, index=True)
+    source_ip = Column(String)
+    method = Column(String)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    headers = Column(JSON, nullable=True)  # Headers ke liye JSON format behtar rahega
+    body = Column(Text, nullable=True)
