@@ -1,27 +1,57 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: aegis-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: aegis-postgres
+    environment:
+      POSTGRES_USER: aegis_user
+      POSTGRES_PASSWORD: aegis_password
+      POSTGRES_DB: aegis_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
   ai-triage-api:
     build:
       context: .
       dockerfile: Dockerfile.api
+    container_name: aegis-api
+    command: uvicorn services.api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://aegis_user:aegis_password@postgres:5432/aegis_db
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
     restart: always
 
   celery-worker:
     build:
       context: .
       dockerfile: Dockerfile.api
+    container_name: aegis-celery-worker
     command: celery -A services.api.main.celery_app worker --loglevel=info
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://aegis_user:aegis_password@postgres:5432/aegis_db
+    volumes:
+      - .:/app
     depends_on:
       - redis
-      - ai-triage-api
+      - postgres
     restart: always
 
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
+volumes:
+  postgres_data:
