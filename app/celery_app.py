@@ -12,7 +12,7 @@ celery_app = Celery(
         "app.tasks.port_scan", 
         "app.tasks.ai_triage", 
         "app.tasks.fuzzing", 
-        "app.tasks.active_scanner"  # Added active scanner
+        "app.tasks.active_scanner"
     ]
 )
 
