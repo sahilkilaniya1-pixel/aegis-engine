@@ -7,7 +7,13 @@ celery_app = Celery(
     "aegis_worker",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.tasks.recon", "app.tasks.port_scan"] # Added port_scan here
+    include=[
+        "app.tasks.recon", 
+        "app.tasks.port_scan", 
+        "app.tasks.ai_triage", 
+        "app.tasks.fuzzing", 
+        "app.tasks.active_scanner"  # Added active scanner
+    ]
 )
 
 celery_app.conf.update(
