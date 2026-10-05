@@ -1,9 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Response
+from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
+import tempfile
 
 from app.database import engine, Base, get_db, SessionLocal
 from app.models import Target, Scan, Vulnerability
+from app.reporter import AdvancedComplianceReporter
 
 # Background Celery Tasks
 from app.tasks.recon import run_subdomain_recon
@@ -15,19 +18,20 @@ from app.tasks.payload_scanner import run_payload_scan
 from app.tasks.crawler import run_crawler_scan
 
 from pydantic import BaseModel
-from services.api import reports
 
-# Core Routers
+# Core Routers, Auth Router & Stream Router
 from app.proxy import proxy_router
 from app.oob_server import oob_router
 from app.auth_macro import macro_router
+from app.routers.auth_router import auth_router
+from app.routers.stream_router import stream_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Database tables auto-create
     Base.metadata.create_all(bind=engine)
     yield
-    # Shutdown logic (agar zaroorat ho)
+    # Shutdown logic
 
 app = FastAPI(
     title="AegisEngine Enterprise VAPT Platform",
@@ -40,7 +44,8 @@ app = FastAPI(
 app.include_router(proxy_router)
 app.include_router(oob_router)
 app.include_router(macro_router)
-app.include_router(reports.router, prefix="/api/v1", tags=["Reports"])
+app.include_router(auth_router)
+app.include_router(stream_router)
 
 class TargetCreate(BaseModel):
     domain: str
@@ -57,7 +62,9 @@ def read_root():
             "Recon & Port Scanner",
             "Active Vulnerability Scanner",
             "Payload & Crawler Engine",
-            "AI Triage & Reports"
+            "AI Triage & Advanced PDF/HTML Compliance Reports",
+            "JWT RBAC Authentication & Nuclei YAML Engine",
+            "Real-time SSE Dashboard Stream"
         ]
     }
 
@@ -231,3 +238,18 @@ def get_scan_status(scan_id: int, db: Session = Depends(get_db)):
         "results": scan.results,
         "created_at": scan.created_at
     }
+
+# Advanced Compliance Reporting Endpoints (HTML & PDF)
+@app.get("/reports/{target_id}", response_class=HTMLResponse, tags=["Reports"])
+def get_security_report_html(target_id: int, db: Session = Depends(get_db)):
+    reporter = AdvancedComplianceReporter(db)
+    return reporter.generate_html_report(target_id)
+
+@app.get("/reports/{target_id}/pdf", tags=["Reports"])
+def get_security_report_pdf(target_id: int, db: Session = Depends(get_db)):
+    reporter = AdvancedComplianceReporter(db)
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    temp_file.close()
+    
+    reporter.generate_pdf_report(target_id, temp_file.name)
+    return FileResponse(temp_file.name, media_type="application/pdf", filename=f"AegisEngine_Security_Report_{target_id}.pdf")
