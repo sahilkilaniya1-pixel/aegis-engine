@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Boolean
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -26,7 +26,11 @@ class Vulnerability(Base):
     target_id = Column(Integer, ForeignKey("targets.id"))
     title = Column(String, nullable=False)
     severity = Column(String, nullable=False)  # Low, Medium, High, Critical
+    cwe = Column(String, nullable=True, default="CWE-200")
+    owasp_category = Column(String, nullable=True, default="A01:2021-Broken Access Control")
     description = Column(Text)
+    remediation = Column(Text, nullable=True)
+    poc = Column(Text, nullable=True)
     raw_evidence = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -40,3 +44,14 @@ class OOBInteractionModel(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     headers = Column(JSON, nullable=True)  # Headers ke liye JSON format behtar rahega
     body = Column(Text, nullable=True)
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, default="tester")  # admin, tester, viewer
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
