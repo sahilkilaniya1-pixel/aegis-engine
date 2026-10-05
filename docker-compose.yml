@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   redis:
     image: redis:7-alpine
@@ -43,6 +45,22 @@ services:
       dockerfile: Dockerfile.api
     container_name: aegis-celery-worker
     command: celery -A app.celery_app.celery_app worker --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aegis_db
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
+    restart: always
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: aegis-celery-beat
+    command: celery -A app.scheduler_engine.celery_app beat --loglevel=info
     environment:
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aegis_db
